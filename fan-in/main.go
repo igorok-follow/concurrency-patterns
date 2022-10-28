@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io/ioutil"
 	"log"
 	"strconv"
@@ -21,7 +20,14 @@ func main() {
 
 	files := fanIn(channels)
 	for {
-		fmt.Println(<-files)
+		select {
+		case x, ok := <-files:
+			if ok {
+				log.Println(x)
+			} else {
+				log.Println("ERROR")
+			}
+		}
 	}
 }
 
@@ -30,7 +36,6 @@ func GetFile(filePath string) <-chan *File {
 
 	go func() {
 		content, err := ioutil.ReadFile(filePath)
-
 		if err != nil {
 			log.Fatal(err)
 		}

@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -10,6 +11,7 @@ type Processor struct {
 	Jobs    chan *Job
 	Done    chan *Worker
 	Workers []*Worker
+	Wg      *sync.WaitGroup
 }
 
 type Job struct {
@@ -33,6 +35,7 @@ func NewProcessor(workersNum int) *Processor {
 		Jobs:    make(chan *Job),
 		Done:    make(chan *Worker),
 		Workers: workers,
+		Wg:      new(sync.WaitGroup),
 	}
 }
 
@@ -83,11 +86,14 @@ func (p *Processor) ScheduleJob(job <-chan *Job) {
 }
 
 func main() {
+	//ctx, cancel := context.WithCancel(context.Background())
 	processor := NewProcessor(5)
 	processor.Run()
 
-	for i := 0; i < 100; i++ {
+	jobsNum := 10
+
+	processor.Wg.Add(jobsNum)
+	for i := 0; i < jobsNum; i++ {
 		processor.ScheduleJob(GetJob(i))
 	}
-	time.Sleep(time.Second * 5)
 }

@@ -24,8 +24,6 @@ func main() {
 		case x, ok := <-files:
 			if ok {
 				log.Println(x)
-			} else {
-				log.Println("ERROR")
 			}
 		}
 	}

@@ -1,41 +1,90 @@
 package main
 
-import "context"
+import (
+	"context"
+	"log"
+	"strconv"
+	"sync"
+)
 
 type Processor struct {
-	Ctx context.Context
+	Receiver   chan *Job
+	Readers    []chan *Job
+	ReadersNum int
+	JobsNum    int
+	Wg         *sync.WaitGroup
 }
 
 type Job struct {
 	Id int
 }
 
-func split(receiver chan *Job) chan *Job {
+func newProcessor(readersNum int, jobsNum int) *Processor {
+	return &Processor{
+		Receiver:   make(chan *Job),
+		Readers:    nil,
+		ReadersNum: readersNum,
+		JobsNum:    jobsNum,
+		Wg:         new(sync.WaitGroup),
+	}
+}
+
+func (p *Processor) run(ctx context.Context, cancel context.CancelFunc) {
+	p.initWorkers(ctx)
+	p.split(ctx)
+	p.toReceiver(cancel)
+}
+
+func (p *Processor) initWorkers(ctx context.Context) {
+	for i := 0; i < p.ReadersNum; i++ {
+		c := make(chan *Job)
+		p.Readers = append(p.Readers, c)
+
+		p.Wg.Add(1)
+		go func() {
+			defer p.Wg.Done()
+
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case j := <-c:
+					log.Println("JOB " + strconv.Itoa(j.Id) + " FINISHED")
+				}
+			}
+		}()
+	}
+}
+
+func (p *Processor) split(ctx context.Context) {
 	go func() {
 		for {
-			select {
-			case <- ctx.Done():
-				return
-			case j := <-
+			for _, reader := range p.Readers {
+				select {
+				case <-ctx.Done():
+					return
+				case j := <-p.Receiver:
+					reader <- j
+				}
 			}
 		}
 	}()
 }
 
-func initWorkers(ctx context.Context, readers chan *Job) chan *Job {
+func (p *Processor) toReceiver(cancel context.CancelFunc) {
+	go func() {
+		for i := 0; i < p.JobsNum; i++ {
+			p.Receiver <- &Job{Id: i}
+		}
 
-}
-
-func toReceiver(receiver chan *Job) {
-
+		cancel()
+	}()
 }
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
-	receiver := make(chan *Job)
-	var readers chan *Job
+	processor := newProcessor(10, 100)
+	processor.run(ctx, cancel)
 
-	readers = initWorkers(ctx)
-	split(receiver)
-	toReceiver(receiver)
+	processor.Wg.Wait()
 }

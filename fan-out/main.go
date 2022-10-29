@@ -1,99 +1,41 @@
 package main
 
-import (
-	"log"
-	"strconv"
-	"sync"
-	"time"
-)
+import "context"
 
 type Processor struct {
-	Jobs    chan *Job
-	Done    chan *Worker
-	Workers []*Worker
-	Wg      *sync.WaitGroup
+	Ctx context.Context
 }
 
 type Job struct {
-	Id   int
-	Name string
+	Id int
 }
 
-type Worker struct {
-	Name string
-}
-
-func NewProcessor(workersNum int) *Processor {
-	workers := make([]*Worker, workersNum)
-	for i := 0; i < len(workers); i++ {
-		workers[i] = &Worker{
-			Name: "Worker Num " + strconv.Itoa(i),
-		}
-	}
-
-	return &Processor{
-		Jobs:    make(chan *Job),
-		Done:    make(chan *Worker),
-		Workers: workers,
-		Wg:      new(sync.WaitGroup),
-	}
-}
-
-func (p *Processor) Run() {
+func split(receiver chan *Job) chan *Job {
 	go func() {
 		for {
 			select {
-			default:
-				if len(p.Workers) > 0 {
-					w := p.Workers[0]
-					p.Workers = p.Workers[1:]
-					w.RunJob(<-p.Jobs, p.Done)
-				}
-			case w := <-p.Done:
-				p.Workers = append(p.Workers, w)
+			case <- ctx.Done():
+				return
+			case j := <-
 			}
 		}
 	}()
 }
 
-func GetJob(id int) <-chan *Job {
-	c := make(chan *Job)
+func initWorkers(ctx context.Context, readers chan *Job) chan *Job {
 
-	go func() {
-		for {
-			job := &Job{
-				Id: id,
-			}
-
-			c <- job
-		}
-	}()
-
-	return c
 }
 
-func (w *Worker) RunJob(job *Job, done chan *Worker) {
-	go func() {
-		time.Sleep(time.Second * 1)
-		log.Println("JOB " + strconv.Itoa(job.Id) + " FINISHED")
-		done <- w
-	}()
-}
+func toReceiver(receiver chan *Job) {
 
-func (p *Processor) ScheduleJob(job <-chan *Job) {
-	j := <-job
-	p.Jobs <- j
 }
 
 func main() {
-	//ctx, cancel := context.WithCancel(context.Background())
-	processor := NewProcessor(5)
-	processor.Run()
+	ctx, cancel := context.WithCancel(context.Background())
+	receiver := make(chan *Job)
+	var readers chan *Job
 
-	jobsNum := 10
-
-	processor.Wg.Add(jobsNum)
-	for i := 0; i < jobsNum; i++ {
-		processor.ScheduleJob(GetJob(i))
-	}
+	readers = initWorkers(ctx)
+	split(receiver)
+	toReceiver(receiver)
 }
